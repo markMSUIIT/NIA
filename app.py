@@ -736,7 +736,7 @@ def show_forecast_advisory(
         annotation_position="top right",
         annotation_font_color="#e67e22",
         annotation_yshift=6,
-        row=1, col=1,
+        row=1,
     )
 
     # 4. Secondary Visualization: Compact Bottom Rainfall Strip
