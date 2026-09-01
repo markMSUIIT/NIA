@@ -230,7 +230,16 @@ def make_satellite_figure(values: np.ndarray, transform, crs, selected: gpd.GeoD
         fig.add_trace(go.Scattermap(lon=list(longitude), lat=list(latitude), mode="lines", line={"color": "#ffffff", "width": 2}, hoverinfo="skip", showlegend=False))
     if sensors is not None and not sensors.empty:
         colors = sensors["AWD status"].map({"Sufficient: at/above soil surface": "#1579b5", "Watch: below soil surface": "#f0c419", "Irrigation needed": "#c0392b"}).fillna("#ffffff")
-        fig.add_trace(go.Scattermap(lon=sensors.longitude, lat=sensors.latitude, mode="markers+text", text=[f"D{int(device)}" for device in sensors["Device"]], textposition="top center", textfont={"color": "white", "size": 11}, marker={"size": 12, "color": colors, "opacity": 1}, name="Sensor station"))
+        places = sensors["place"] if "place" in sensors else pd.Series("", index=sensors.index)
+        timestamps = sensors["Timestamp"] if "Timestamp" in sensors else pd.Series("Median observation", index=sensors.index)
+        statuses = sensors["AWD status"] if "AWD status" in sensors else pd.Series("", index=sensors.index)
+        water_levels = sensors["Water Level (cm)"] if "Water Level (cm)" in sensors else (55.0 - sensors["Water Distance (cm)"])
+        fig.add_trace(go.Scattermap(
+            lon=sensors.longitude, lat=sensors.latitude, mode="markers+text", text=[f"D{int(device)}" for device in sensors["Device"]],
+            textposition="top center", textfont={"color": "white", "size": 11}, marker={"size": 12, "color": colors, "opacity": 1}, name="Sensor station",
+            customdata=np.column_stack([places, sensors["Water Distance (cm)"], water_levels, sensors.get("AWD water deficit (cm)", pd.Series(np.nan, index=sensors.index)), statuses, timestamps]),
+            hovertemplate="<b>%{text}</b><br>%{customdata[0]}<br>Water level (55 cm − sensor): <b>%{customdata[2]:.2f} cm</b><br>Raw sensor distance: %{customdata[1]:.2f} cm<br>AWD deficit below soil: %{customdata[3]:.2f} cm<br>Status: %{customdata[4]}<br>Observed: %{customdata[5]}<extra></extra>",
+        ))
     centroid = selected.to_crs("EPSG:4326").geometry.union_all().centroid
     fig.update_layout(title=title, map={"style": "white-bg", "center": {"lon": centroid.x, "lat": centroid.y}, "zoom": 12, "layers": [{"below": "traces", "sourcetype": "raster", "source": ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"], "sourceattribution": "Esri, Maxar, Earthstar Geographics"}]}, margin={"l": 5, "r": 5, "t": 48, "b": 5}, height=760)
     return fig
@@ -260,6 +269,7 @@ def make_figure(values: np.ndarray, transform, crs, selected: gpd.GeoDataFrame, 
         places = sensor_points["place"] if "place" in sensor_points else pd.Series("", index=sensor_points.index)
         timestamps = sensor_points["Timestamp"] if "Timestamp" in sensor_points else pd.Series("Median observation", index=sensor_points.index)
         statuses = sensor_points["AWD status"] if "AWD status" in sensor_points else pd.Series("", index=sensor_points.index)
+        water_levels = sensor_points["Water Level (cm)"] if "Water Level (cm)" in sensor_points else (55.0 - sensor_points["Water Distance (cm)"])
         station_colors = sensor_points["AWD status"].map({
             "Sufficient: at/above soil surface": "#1579b5",
             "Watch: below soil surface": "#f0c419",
@@ -269,8 +279,8 @@ def make_figure(values: np.ndarray, transform, crs, selected: gpd.GeoDataFrame, 
             x=sensor_points.geometry.x, y=sensor_points.geometry.y, mode="markers+text", text=labels,
             textposition="top center", textfont={"color": "white", "size": 11},
             marker={"size": 13, "color": station_colors, "line": {"color": "#ffffff", "width": 1.5}},
-            customdata=np.column_stack([places, sensor_points["Water Distance (cm)"], sensor_points.get("AWD water deficit (cm)", pd.Series(np.nan, index=sensor_points.index)), statuses, timestamps]),
-            hovertemplate="<b>%{text}</b><br>%{customdata[0]}<br>Raw sensor distance: %{customdata[1]:.2f} cm<br>AWD deficit below soil: %{customdata[2]:.2f} cm<br>Status: %{customdata[3]}<br>Observed: %{customdata[4]}<extra></extra>",
+            customdata=np.column_stack([places, sensor_points["Water Distance (cm)"], water_levels, sensor_points.get("AWD water deficit (cm)", pd.Series(np.nan, index=sensor_points.index)), statuses, timestamps]),
+            hovertemplate="<b>%{text}</b><br>%{customdata[0]}<br>Water level (55 cm − sensor): <b>%{customdata[2]:.2f} cm</b><br>Raw sensor distance: %{customdata[1]:.2f} cm<br>AWD deficit below soil: %{customdata[3]:.2f} cm<br>Status: %{customdata[4]}<br>Observed: %{customdata[5]}<extra></extra>",
             name="Sensor station",
         ))
     fig.update_layout(
@@ -291,10 +301,11 @@ def load_public_sheet_raw() -> pd.DataFrame:
     return pd.read_csv(PUBLIC_SHEET_CSV)
 
 
-def clean_water_distance(table: pd.DataFrame) -> pd.DataFrame:
-    """Keep only physically valid water-distance readings in the requested range."""
+def clean_water_distance(table: pd.DataFrame, sensor_height_cm: float = 55.0) -> pd.DataFrame:
+    """Keep only physically valid water-distance readings and compute water level (55 cm - distance)."""
     data = table.copy()
     data["Water Distance (cm)"] = pd.to_numeric(data["Water Distance (cm)"], errors="coerce")
+    data["Water Level (cm)"] = sensor_height_cm - data["Water Distance (cm)"]
     return data[data["Water Distance (cm)"].gt(0) & data["Water Distance (cm)"].le(60)].copy()
 
 
@@ -362,17 +373,22 @@ def show_sheet_timeseries(table: pd.DataFrame) -> None:
     if chosen_devices:
         data = data[data[device_column].isin(chosen_devices)]
     latest = data.iloc[-1]
-    first, second, third = st.columns(3)
-    first.metric("Latest water distance", f"{latest[distance_column]:.2f} cm")
-    second.metric("Lowest recorded", f"{data[distance_column].min():.2f} cm")
-    third.metric("Measurements", f"{len(data):,}")
+    latest_distance = latest[distance_column]
+    latest_level = 55.0 - latest_distance
+    first, second, third, fourth = st.columns(4)
+    first.metric("Latest water level (55 cm ref)", f"{latest_level:.2f} cm")
+    second.metric("Latest raw distance", f"{latest_distance:.2f} cm")
+    third.metric("Max water level recorded", f"{55.0 - data[distance_column].min():.2f} cm")
+    fourth.metric("Measurements", f"{len(data):,}")
     color = device_column if device_column in data else None
     fig = go.Figure()
     for device, group in data.groupby(device_column) if color else [("Measurements", data)]:
+        water_levels = 55.0 - group[distance_column]
         fig.add_trace(go.Scattergl(
             x=group[timestamp_column], y=group[distance_column], mode="lines+markers", name=f"Device {device}",
             line={"color": "#00b6df"}, marker={"size": 4},
-            hovertemplate="%{x}<br>Water distance: %{y:.2f} cm<extra></extra>",
+            customdata=water_levels,
+            hovertemplate="%{x}<br>Water level (55 cm − sensor): <b>%{customdata:.2f} cm</b><br>Raw sensor distance: %{y:.2f} cm<extra></extra>",
         ))
     fig.update_layout(
         title="Water distance recorded by the public sheet", template="plotly_dark",
@@ -389,8 +405,9 @@ def show_iot_conditions(table: pd.DataFrame) -> None:
     """Explore the environmental and soil observations paired with clean AWD readings."""
     data = table.copy()
     data["Timestamp"] = pd.to_datetime(data["Timestamp"], errors="coerce")
+    data["Water Level (cm)"] = 55.0 - pd.to_numeric(data["Water Distance (cm)"], errors="coerce")
     available = [column for column in IOT_FACTORS if column in data.columns]
-    for column in ["Water Distance (cm)", *available]:
+    for column in ["Water Distance (cm)", "Water Level (cm)", *available]:
         data[column] = pd.to_numeric(data[column], errors="coerce")
     data = data.dropna(subset=["Timestamp", "Water Distance (cm)"]).sort_values("Timestamp")
     metric = st.sidebar.selectbox("IoT factor to inspect", available, index=0)
@@ -400,7 +417,7 @@ def show_iot_conditions(table: pd.DataFrame) -> None:
         data = data[data["Device"].isin(selected_devices)]
     st.subheader("Latest field readings by station")
     latest = data.sort_values("Timestamp").groupby("Device", as_index=False).tail(1)
-    latest_columns = ["Device", "Timestamp", "Water Distance (cm)", *available]
+    latest_columns = ["Device", "Timestamp", "Water Level (cm)", "Water Distance (cm)", *available]
     st.dataframe(latest[latest_columns].sort_values("Device").round(2), use_container_width=True, hide_index=True)
     st.download_button(
         "Download latest station readings",
@@ -476,10 +493,11 @@ def prepare_water_distance_points(locations_upload, use_latest: bool, as_of: pd.
     return merged
 
 
-def apply_awd_status(points: pd.DataFrame, irrigation_trigger_cm: float) -> pd.DataFrame:
-    """Apply AWD status with a non-negative deficit below the soil surface."""
+def apply_awd_status(points: pd.DataFrame, irrigation_trigger_cm: float, sensor_height_cm: float = 55.0) -> pd.DataFrame:
+    """Apply AWD status with water level = sensor_height - raw distance."""
     data = points.copy()
     raw = data["Water Distance (cm)"]
+    data["Water Level (cm)"] = sensor_height_cm - raw
     data["AWD water deficit (cm)"] = np.maximum(raw - SOIL_SURFACE_READING_CM, 0)
     data["AWD status"] = np.select(
         [raw <= SOIL_SURFACE_READING_CM, raw <= irrigation_trigger_cm],
@@ -549,6 +567,7 @@ def build_irrigation_plan(
         first_day_rain = float(weather["Rainfall (mm)"].iloc[0])
         first_day_probability = float(weather["Rain probability (%)"].iloc[0])
         raw_distance = float(station["Water Distance (cm)"])
+        water_level = 55.0 - raw_distance
         rain_deferral = first_day_rain >= min_rain_deferral and first_day_probability >= min_prob_deferral
         if raw_distance > irrigation_trigger_cm and not rain_deferral:
             action = "Irrigate today"
@@ -564,6 +583,7 @@ def build_irrigation_plan(
             "Longitude": station["longitude"],
             "Latitude": station["latitude"],
             "Last observation": station["Timestamp"],
+            "Water level (55 cm ref)": water_level,
             "Current water distance (cm)": raw_distance,
             "Recent drawdown (cm/day)": trend,
             "Rain next 24 h (mm)": first_day_rain,
@@ -587,6 +607,7 @@ def make_priority_map(plan: pd.DataFrame) -> go.Figure:
         stations = plan[plan["Recommended action"] == action]
         if stations.empty:
             continue
+        water_levels = 55.0 - stations["Current water distance (cm)"]
         figure.add_trace(go.Scattermap(
             lon=stations["Longitude"], lat=stations["Latitude"], mode="markers+text",
             text=[f"D{int(device)}" for device in stations["Device"]], textposition="top center",
@@ -594,11 +615,12 @@ def make_priority_map(plan: pd.DataFrame) -> go.Figure:
             marker={"size": 17, "color": color, "opacity": 0.95},
             customdata=np.column_stack([
                 stations["Place"], stations["Current water distance (cm)"],
-                stations["Recent drawdown (cm/day)"], stations["Rain next 24 h (mm)"],
+                water_levels, stations["Recent drawdown (cm/day)"], stations["Rain next 24 h (mm)"],
             ]),
             hovertemplate=("<b>%{text}</b><br>%{customdata[0]}<br>Action: " + action +
-                           "<br>Water distance: %{customdata[1]:.1f} cm<br>Drawdown: %{customdata[2]:.2f} cm/day" +
-                           "<br>Rain next 24 h: %{customdata[3]:.1f} mm<extra></extra>"),
+                           "<br>Water level (55 cm − sensor): <b>%{customdata[2]:.1f} cm</b>" +
+                           "<br>Raw distance: %{customdata[1]:.1f} cm<br>Drawdown: %{customdata[3]:.2f} cm/day" +
+                           "<br>Rain next 24 h: %{customdata[4]:.1f} mm<extra></extra>"),
         ))
     figure.update_layout(
         title="Irrigation priority by sensor station", height=500,
@@ -691,9 +713,10 @@ def show_forecast_advisory(
     st.subheader(f"Device {int(selected_device)} water-distance forecast")
 
     # Current Status Summary Cards (Requirements 7, 8, 9)
+    current_wl = 55.0 - station_plan['Current water distance (cm)']
     with st.container(horizontal=True):
         st.metric("Recommended action", station_plan["Recommended action"], border=True)
-        st.metric("Current water distance", f"{station_plan['Current water distance (cm)']:.1f} cm", border=True)
+        st.metric("Water level (55 cm ref)", f"{current_wl:.1f} cm", delta=f"Raw sensor: {station_plan['Current water distance (cm)']:.1f} cm", border=True)
         st.metric("Recent drawdown", f"{station_plan['Recent drawdown (cm/day)']:.2f} cm/day", border=True)
         crossing_str = station_plan["Threshold date"].strftime("%d %b %Y") if pd.notna(station_plan["Threshold date"]) else "No crossing in forecast"
         st.metric("Projected trigger crossing", crossing_str, border=True)
@@ -782,7 +805,8 @@ def show_forecast_advisory(
         legend={"orientation": "h", "x": 0, "y": 1.1, "xanchor": "left", "yanchor": "bottom"},
     )
     st.plotly_chart(forecast_chart, width="stretch")
-    weather_table = station_forecast[["Date", "Weather", "Min temperature (C)", "Max temperature (C)", "Rainfall (mm)", "Rain probability (%)", "Reference ET (mm)", "Max wind speed (km/h)", "Projected water distance (cm)"]]
+    station_forecast["Projected water level (55 cm ref)"] = 55.0 - station_forecast["Projected water distance (cm)"]
+    weather_table = station_forecast[["Date", "Weather", "Min temperature (C)", "Max temperature (C)", "Rainfall (mm)", "Rain probability (%)", "Reference ET (mm)", "Max wind speed (km/h)", "Projected water distance (cm)", "Projected water level (55 cm ref)"]]
     st.subheader("Daily weather and water-distance outlook")
     st.dataframe(weather_table.round(2), hide_index=True, width="stretch")
     st.caption("Forecast source: Open-Meteo. Water-distance projection uses each station's recent trend, adjusted by forecast reference ET and rainfall. Validate recommendations against field conditions and canal availability.")
@@ -867,7 +891,7 @@ def main() -> None:
             distance_statistic = st.radio("Measurement used", ["Latest reading per device", "Median reading per device"])
             spatial_model = st.selectbox("Spatial model", ["Inverse-distance weighting (recommended)", "Linear interpolation"])
             irrigation_trigger = st.number_input(f"{season} irrigation trigger (raw sensor cm)", min_value=SOIL_SURFACE_READING_CM, max_value=60.0, value=default_trigger, step=1.0, help="20 cm is the confirmed soil-surface reading. Values above this trigger are classified as irrigation needed.")
-            map_layer = st.radio("Map layer", [f"AWD {season.lower()} water sufficiency", "Water-distance estimate", "Model confidence (nearest sensor)"])
+            map_layer = st.radio("Map layer", [f"AWD {season.lower()} water sufficiency", "Water level surface (55 cm − sensor reading)", "Water-distance estimate", "Model confidence (nearest sensor)"])
             satellite_mode = st.checkbox("Satellite imagery basemap", value=False, help="Uses Esri World Imagery while keeping the water-distance layer and station markers visible. Requires an internet connection.")
             grid_size = st.slider("Interpolation detail", 180, 900, 500, 20)
             if locations_upload is None and not DEVICE_LOCATIONS_FILE.exists():
@@ -942,6 +966,10 @@ def main() -> None:
                     else:
                         st.success("Field advisory: no modelled area is beyond the selected irrigation trigger. Continue routine AWD monitoring.")
                     st.markdown("**Rice AWD guide:** 🔵 water at/above soil surface &nbsp; • &nbsp; 🟢 small drawdown—monitor &nbsp; • &nbsp; 🟡 approaching trigger &nbsp; • &nbsp; 🟠🔴 irrigation needed")
+                elif "Water level surface" in map_layer:
+                    values = 55.0 - values
+                    title = f"Water level surface (55 cm − sensor distance) — {place}"
+                    unit = "cm"
                 else:
                     title = f"Water distance ({model_label}) — {place}"
                     unit = "cm"
