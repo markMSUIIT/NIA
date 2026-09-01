@@ -840,7 +840,7 @@ def main() -> None:
     with st.sidebar:
         place = st.selectbox("Adjust view by place", ["All Midsayap"] + labels)
         source = st.radio("Workspace", ["Forecast-aware irrigation plan", "Water distance map (Google Sheet)", "IoT conditions and relationships", "Terrain surface (reference style)", "Public Google Sheet (read-only)", "Distance raster (.tif)", "Exported Google Sheet (CSV/XLSX)"], index=0)
-        unit = st.text_input("Distance unit", "metres")
+        custom_unit = st.text_input("Distance unit", "metres")
         upload = None
         forecast_locations_upload = None
         if source == "Forecast-aware irrigation plan":
@@ -911,41 +911,48 @@ def main() -> None:
             metric_one.metric("Stations used", len(points))
             metric_two.metric("IDW validation MAE", f"{mae:.2f} cm")
             metric_three.metric("IDW validation RMSE", f"{rmse:.2f} cm")
+
             if map_layer == "Model confidence (nearest sensor)":
                 values, transform = nearest_sensor_distance(points, selected, crs, grid_size)
-                title, unit = f"Model confidence — distance to nearest sensor — {place}", "metres"
-            elif spatial_model == "Inverse-distance weighting (recommended)":
-                values, transform = interpolate_idw(points, "longitude", "latitude", "Water Distance (cm)", selected, crs, grid_size)
-                model_label = "IDW model"
+                title = f"Model confidence — distance to nearest sensor — {place}"
+                unit = "metres"
             else:
-                values, transform = interpolate_sheet(points, "longitude", "latitude", "Water Distance (cm)", selected, crs, grid_size)
-                model_label = "linear model"
-            if map_layer == "AWD wet-season water sufficiency":
-                raw_reading = values.copy()
-                values = np.maximum(raw_reading - SOIL_SURFACE_READING_CM, 0)
-                valid = raw_reading[np.isfinite(raw_reading)]
-                sufficient = np.mean(valid <= SOIL_SURFACE_READING_CM) * 100
-                watch = np.mean((valid > SOIL_SURFACE_READING_CM) & (valid <= irrigation_trigger)) * 100
-                needed = np.mean(valid > irrigation_trigger) * 100
-                status_one, status_two, status_three = st.columns(3)
-                status_one.metric("Sufficient / at soil", f"{sufficient:.1f}%")
-                status_two.metric("Watch", f"{watch:.1f}%")
-                status_three.metric("Irrigation needed", f"{needed:.1f}%")
-                title, unit = f"AWD water deficit below soil surface — {place}", "cm"
-                if needed > 0:
-                    st.warning(f"Irrigation advisory: {needed:.1f}% of the modelled area is beyond the selected wet-season trigger. Check the red/orange zones and the matching station markers first.")
+                if spatial_model == "Inverse-distance weighting (recommended)":
+                    values, transform = interpolate_idw(points, "longitude", "latitude", "Water Distance (cm)", selected, crs, grid_size)
+                    model_label = "IDW model"
                 else:
-                    st.success("Field advisory: no modelled area is beyond the selected irrigation trigger. Continue routine AWD monitoring.")
-                st.markdown("**Rice AWD guide:** 🔵 water at/above soil surface &nbsp; • &nbsp; 🟢 small drawdown—monitor &nbsp; • &nbsp; 🟡 approaching trigger &nbsp; • &nbsp; 🟠🔴 irrigation needed")
-            elif map_layer == "Water-distance estimate":
-                title, unit = f"Water distance ({model_label}) — {place}", "cm"
+                    values, transform = interpolate_sheet(points, "longitude", "latitude", "Water Distance (cm)", selected, crs, grid_size)
+                    model_label = "linear model"
+
+                if map_layer.startswith("AWD "):
+                    raw_reading = values.copy()
+                    values = np.maximum(raw_reading - SOIL_SURFACE_READING_CM, 0)
+                    valid = raw_reading[np.isfinite(raw_reading)]
+                    sufficient = np.mean(valid <= SOIL_SURFACE_READING_CM) * 100
+                    watch = np.mean((valid > SOIL_SURFACE_READING_CM) & (valid <= irrigation_trigger)) * 100
+                    needed = np.mean(valid > irrigation_trigger) * 100
+                    status_one, status_two, status_three = st.columns(3)
+                    status_one.metric("Sufficient / at soil", f"{sufficient:.1f}%")
+                    status_two.metric("Watch", f"{watch:.1f}%")
+                    status_three.metric("Irrigation needed", f"{needed:.1f}%")
+                    title = f"AWD water deficit below soil surface ({season}) — {place}"
+                    unit = "cm"
+                    if needed > 0:
+                        st.warning(f"Irrigation advisory: {needed:.1f}% of the modelled area is beyond the selected {season.lower()} trigger. Check the red/orange zones and the matching station markers first.")
+                    else:
+                        st.success("Field advisory: no modelled area is beyond the selected irrigation trigger. Continue routine AWD monitoring.")
+                    st.markdown("**Rice AWD guide:** 🔵 water at/above soil surface &nbsp; • &nbsp; 🟢 small drawdown—monitor &nbsp; • &nbsp; 🟡 approaching trigger &nbsp; • &nbsp; 🟠🔴 irrigation needed")
+                else:
+                    title = f"Water distance ({model_label}) — {place}"
+                    unit = "cm"
             st.caption(f"AWD calibration: raw reading {SOIL_SURFACE_READING_CM:.0f} cm = soil surface; AWD water deficit = max(raw reading − {SOIL_SURFACE_READING_CM:.0f}, 0). In the sufficiency layer, blue means at/near the soil surface and warmer colours mean a larger estimated deficit. Irrigation-needed threshold: raw reading > {irrigation_trigger:.0f} cm.")
         if source == "Terrain surface (reference style)":
             if not DEM_FILE.exists():
                 st.error("The local DEM file is unavailable.")
                 st.stop()
             values, transform, crs = dem_preview(selected)
-            title, unit = f"Midsayap surface — {place}", "metres elevation"
+            title = f"Midsayap surface — {place}"
+            unit = "metres elevation"
             st.caption("Reference-style terrain surface using the supplied Midsayap elevation raster. Blue = lower terrain; cyan/yellow/orange/red = higher terrain.")
         if source == "Distance raster (.tif)":
             raster = upload or (DISTANCE_RASTERS[0] if DISTANCE_RASTERS else None)
@@ -954,6 +961,7 @@ def main() -> None:
                 st.stop()
             values, transform, crs = raster_distance(raster, selected)
             title = f"Water distance — {place}"
+            unit = custom_unit
         elif source == "Exported Google Sheet (CSV/XLSX)":
             if upload is None:
                 st.info("Export the read-only Google Sheet manually as CSV or XLSX, then upload it here.")
@@ -969,6 +977,7 @@ def main() -> None:
             crs = boundaries.crs
             values, transform = interpolate_sheet(table, x_col, y_col, value_col, selected, crs, grid_size)
             title = f"Interpolated water distance — {place}"
+            unit = custom_unit
 
         if not np.isfinite(values).any():
             raise ValueError("No valid values remain inside the chosen place.")
