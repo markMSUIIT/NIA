@@ -298,7 +298,10 @@ def read_sheet(upload) -> pd.DataFrame:
 @st.cache_data(ttl=900, show_spinner="Loading the public read-only spreadsheet…")
 def load_public_sheet_raw() -> pd.DataFrame:
     """Fetch the sheet's published CSV snapshot; this is not a Sheets API call."""
-    return pd.read_csv(PUBLIC_SHEET_CSV)
+    data = pd.read_csv(PUBLIC_SHEET_CSV)
+    if "Timestamp" not in data.columns and "Unnamed: 0" in data.columns:
+        data = data.rename(columns={"Unnamed: 0": "Timestamp"})
+    return data
 
 
 def clean_water_distance(table: pd.DataFrame, sensor_height_cm: float = 55.0) -> pd.DataFrame:
@@ -522,6 +525,21 @@ def recent_drawdown_rate(table: pd.DataFrame, device: int | float) -> float:
     return float(np.clip(rate, -2.0, 6.0))
 
 
+def device_history_window(table: pd.DataFrame, device: int | float, days: int) -> pd.DataFrame:
+    """Return the device's daily-averaged observed readings for the trailing window."""
+    history = table[table["Device"] == device][["Timestamp", "Water Distance (cm)"]].copy()
+    history["Timestamp"] = pd.to_datetime(history["Timestamp"], errors="coerce")
+    history["Water Distance (cm)"] = pd.to_numeric(history["Water Distance (cm)"], errors="coerce")
+    history = history.dropna().sort_values("Timestamp")
+    if history.empty:
+        return history.assign(**{"Water Level (cm)": pd.Series(dtype=float)})
+    cutoff = history["Timestamp"].max() - pd.Timedelta(days=days)
+    history = history[history["Timestamp"] >= cutoff]
+    daily = history.set_index("Timestamp").resample("D")["Water Distance (cm)"].mean().dropna().reset_index()
+    daily["Water Level (cm)"] = 55.0 - daily["Water Distance (cm)"]
+    return daily
+
+
 def build_irrigation_plan(
     readings: pd.DataFrame,
     locations_source,
@@ -668,9 +686,11 @@ def show_forecast_advisory(
     field_area_ha: float,
     delivery_depth_mm: float,
     season: str = "Wet Season",
+    history_days: int = 30,
 ) -> None:
+    readings = load_public_sheet()
     plan, forecast = build_irrigation_plan(
-        load_public_sheet(), locations_source, irrigation_trigger_cm, forecast_days, season
+        readings, locations_source, irrigation_trigger_cm, forecast_days, season
     )
     urgent_actions = plan["Recommended action"].isin(["Irrigate today", "Schedule within 48 h"])
     rainfall_holds = plan["Recommended action"].eq("Hold for forecast rain")
@@ -710,6 +730,7 @@ def show_forecast_advisory(
     selected_device = st.selectbox("Station forecast detail", devices, format_func=lambda device: f"Device {int(device)}")
     station_forecast = forecast[forecast["Device"] == selected_device].copy()
     station_plan = plan[plan["Device"] == selected_device].iloc[0]
+    station_history = device_history_window(readings, selected_device, history_days)
     st.subheader(f"Device {int(selected_device)} water-distance forecast")
 
     # Current Status Summary Cards (Requirements 7, 8, 9)
@@ -722,8 +743,9 @@ def show_forecast_advisory(
         st.metric("Projected trigger crossing", crossing_str, border=True)
 
     # Calculate optimal Y-axis range for Water Distance (Requirement 5)
-    min_wd = min(station_forecast["Projected water distance (cm)"].min(), irrigation_trigger_cm, station_plan["Current water distance (cm)"])
-    max_wd = max(station_forecast["Projected water distance (cm)"].max(), irrigation_trigger_cm, station_plan["Current water distance (cm)"])
+    history_values = station_history["Water Distance (cm)"] if not station_history.empty else pd.Series(dtype=float)
+    min_wd = min(station_forecast["Projected water distance (cm)"].min(), irrigation_trigger_cm, station_plan["Current water distance (cm)"], history_values.min() if not history_values.empty else station_plan["Current water distance (cm)"])
+    max_wd = max(station_forecast["Projected water distance (cm)"].max(), irrigation_trigger_cm, station_plan["Current water distance (cm)"], history_values.max() if not history_values.empty else station_plan["Current water distance (cm)"])
     padding = max((max_wd - min_wd) * 0.15, 2.0)
     y1_range = [min_wd - padding, max_wd + padding]
 
@@ -734,6 +756,21 @@ def show_forecast_advisory(
         row_heights=[0.72, 0.28],
         vertical_spacing=0.08,
     )
+
+    # 0. Historical Observed Water Distance (past N days, from IoT sensor readings)
+    if not station_history.empty:
+        forecast_chart.add_trace(
+            go.Scatter(
+                x=station_history["Timestamp"],
+                y=station_history["Water Distance (cm)"],
+                name=f"Observed (past {history_days} d)",
+                mode="lines+markers",
+                line={"color": "#6c757d", "width": 2.5},
+                marker={"size": 5, "color": "#6c757d"},
+                hovertemplate="<b>%{x|%d %b %Y}</b><br>Observed water distance: <b>%{y:.1f} cm</b><extra></extra>",
+            ),
+            row=1, col=1,
+        )
 
     # 1. Primary Visualization: Projected Water Distance
     forecast_chart.add_trace(
@@ -804,7 +841,23 @@ def show_forecast_advisory(
         margin={"l": 60, "r": 30, "t": 40, "b": 35},
         legend={"orientation": "h", "x": 0, "y": 1.1, "xanchor": "left", "yanchor": "bottom"},
     )
+    if not station_history.empty:
+        forecast_chart.add_vline(
+            x=station_forecast["Date"].iloc[0], line_dash="dot", line_color="#999999",
+            annotation_text="Today", annotation_position="top", row=1,
+        )
     st.plotly_chart(forecast_chart, width="stretch")
+    if not station_history.empty:
+        st.caption(f"Grey line = {history_days} days of observed IoT readings. Blue line = forecast projection from today onward.")
+        with st.expander(f"Show observed history table (past {history_days} days)"):
+            history_table = station_history.rename(columns={"Timestamp": "Date"})
+            st.dataframe(history_table.round(2), hide_index=True, width="stretch")
+            st.download_button(
+                "Download observed history",
+                data=history_table.to_csv(index=False),
+                file_name=f"device_{int(selected_device)}_history_{history_days}d.csv",
+                mime="text/csv", key="download_device_history",
+            )
     station_forecast["Projected water level (55 cm ref)"] = 55.0 - station_forecast["Projected water distance (cm)"]
     weather_table = station_forecast[["Date", "Weather", "Min temperature (C)", "Max temperature (C)", "Rainfall (mm)", "Rain probability (%)", "Reference ET (mm)", "Max wind speed (km/h)", "Projected water distance (cm)", "Projected water level (55 cm ref)"]]
     st.subheader("Daily weather and water-distance outlook")
@@ -870,6 +923,7 @@ def main() -> None:
         if source == "Forecast-aware irrigation plan":
             st.caption(f"Combines latest IoT water distance with Open-Meteo's daily forecast adapted for {season}. Forecasts refresh every 30 minutes.")
             forecast_locations_upload = st.file_uploader("Upload device locations CSV", type=["csv"], key="forecast_locations")
+            history_days = st.slider("Historical lookback (days)", 7, 90, 30, help="How many past days of observed IoT readings to show alongside the forecast.")
             forecast_days = st.slider("Forecast horizon (days)", 3, 14, 7)
             forecast_trigger = st.number_input(f"{season} irrigation trigger (raw sensor cm)", min_value=SOIL_SURFACE_READING_CM, max_value=60.0, value=default_trigger, step=1.0, key="forecast_trigger")
             field_area_ha = st.number_input("Representative area per station (ha)", min_value=0.1, max_value=500.0, value=5.0, step=0.5)
@@ -915,7 +969,7 @@ def main() -> None:
             if location_source is None or (isinstance(location_source, Path) and not location_source.exists()):
                 st.error("Upload a device-locations CSV with Device, longitude, and latitude columns to create the forecast plan.")
                 st.stop()
-            show_forecast_advisory(location_source, forecast_trigger, forecast_days, field_area_ha, delivery_depth_mm, season=season)
+            show_forecast_advisory(location_source, forecast_trigger, forecast_days, field_area_ha, delivery_depth_mm, season=season, history_days=history_days)
             return
         if source == "Public Google Sheet (read-only)":
             show_sheet_timeseries(load_public_sheet())
