@@ -345,6 +345,33 @@ def load_open_meteo_forecast(latitude: float, longitude: float, days: int) -> pd
     return forecast
 
 
+@st.cache_data(ttl=1800, show_spinner=False)
+def load_open_meteo_history(latitude: float, longitude: float, days: int) -> pd.DataFrame:
+    """Load past daily rainfall/ET/temperature from Open-Meteo's blended forecast+reanalysis record."""
+    query = urlencode({
+        "latitude": round(latitude, 4),
+        "longitude": round(longitude, 4),
+        "daily": "temperature_2m_max,precipitation_sum,et0_fao_evapotranspiration",
+        "timezone": "Asia/Manila",
+        "past_days": days,
+        "forecast_days": 1,
+    })
+    with urlopen(f"https://api.open-meteo.com/v1/forecast?{query}", timeout=15) as response:
+        payload = json.load(response)
+    daily = payload.get("daily")
+    if not daily or "time" not in daily:
+        raise ValueError("Open-Meteo returned no daily history data.")
+    history = pd.DataFrame(daily).rename(columns={
+        "time": "Date",
+        "temperature_2m_max": "Max temperature (C)",
+        "precipitation_sum": "Rainfall (mm)",
+        "et0_fao_evapotranspiration": "Reference ET (mm)",
+    })
+    history["Date"] = pd.to_datetime(history["Date"])
+    # Drop the trailing forecast_days=1 row so history stops the day before "today".
+    return history.iloc[:-1].copy()
+
+
 def weather_condition(code: int) -> str:
     conditions = {
         0: "Clear sky", 1: "Mainly clear", 2: "Partly cloudy", 3: "Overcast",
@@ -546,7 +573,8 @@ def build_irrigation_plan(
     irrigation_trigger_cm: float,
     forecast_days: int,
     season: str = "Wet Season",
-) -> tuple[pd.DataFrame, pd.DataFrame]:
+    history_days: int = 30,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Combine latest IoT data, its trend, and local weather into a station plan."""
     locations = pd.read_csv(locations_source)
     required = {"Device", "longitude", "latitude"}
@@ -566,9 +594,13 @@ def build_irrigation_plan(
     min_rain_deferral = 15.0 if is_dry else 8.0
     min_prob_deferral = 60.0 if is_dry else 50.0
 
-    station_rows, forecast_rows = [], []
+    station_rows, forecast_rows, history_rows = [], [], []
     for _, station in stations.iterrows():
         weather = load_open_meteo_forecast(float(station["latitude"]), float(station["longitude"]), forecast_days).copy()
+        weather_history = load_open_meteo_history(float(station["latitude"]), float(station["longitude"]), history_days).copy()
+        weather_history["Device"] = station["Device"]
+        weather_history["Place"] = station.get("place", "Unspecified")
+        history_rows.append(weather_history)
         trend = recent_drawdown_rate(readings, station["Device"])
         # Rainfall and ET adjust the observed trend according to seasonal parameters.
         weather["Projected daily change (cm)"] = np.clip(
@@ -609,7 +641,7 @@ def build_irrigation_plan(
             "Threshold date": threshold_date,
             "Recommended action": action,
         })
-    return pd.DataFrame(station_rows), pd.concat(forecast_rows, ignore_index=True)
+    return pd.DataFrame(station_rows), pd.concat(forecast_rows, ignore_index=True), pd.concat(history_rows, ignore_index=True)
 
 
 def make_priority_map(plan: pd.DataFrame) -> go.Figure:
@@ -653,19 +685,31 @@ def make_priority_map(plan: pd.DataFrame) -> go.Figure:
     return figure
 
 
-def make_district_weather_figure(forecast: pd.DataFrame) -> go.Figure:
+def make_district_weather_figure(forecast: pd.DataFrame, history: pd.DataFrame | None = None) -> go.Figure:
     """Summarize weather pressure across all configured sensor locations."""
     daily = forecast.groupby("Date", as_index=False).agg({
         "Rainfall (mm)": "mean", "Rain probability (%)": "mean", "Reference ET (mm)": "mean",
         "Max temperature (C)": "mean", "Max wind speed (km/h)": "mean",
     })
     figure = go.Figure()
+    if history is not None and not history.empty:
+        daily_history = history.groupby("Date", as_index=False).agg({"Rainfall (mm)": "mean", "Reference ET (mm)": "mean"})
+        figure.add_trace(go.Bar(
+            x=daily_history["Date"], y=daily_history["Rainfall (mm)"], name="Rainfall (history)",
+            marker_color="#9aa5ad", hovertemplate="%{x|%d %b}<br>Rainfall: %{y:.1f} mm<extra></extra>",
+        ))
+        figure.add_trace(go.Scatter(
+            x=daily_history["Date"], y=daily_history["Reference ET (mm)"], name="ET0 (history)",
+            mode="lines", line={"color": "#d06b23", "width": 2, "dash": "dot"},
+            hovertemplate="%{x|%d %b}<br>ET0: %{y:.1f} mm<extra></extra>",
+        ))
+        figure.add_vline(x=daily["Date"].iloc[0], line_dash="dot", line_color="#999999", annotation_text="Today", annotation_position="top")
     figure.add_trace(go.Bar(
-        x=daily["Date"], y=daily["Rainfall (mm)"], name="Rainfall",
+        x=daily["Date"], y=daily["Rainfall (mm)"], name="Rainfall (forecast)",
         marker_color="#2d82b7", hovertemplate="%{x|%d %b}<br>Rainfall: %{y:.1f} mm<extra></extra>",
     ))
     figure.add_trace(go.Scatter(
-        x=daily["Date"], y=daily["Reference ET (mm)"], name="ET0",
+        x=daily["Date"], y=daily["Reference ET (mm)"], name="ET0 (forecast)",
         mode="lines+markers", line={"color": "#d06b23", "width": 3},
         hovertemplate="%{x|%d %b}<br>ET0: %{y:.1f} mm<extra></extra>",
     ))
@@ -689,8 +733,8 @@ def show_forecast_advisory(
     history_days: int = 30,
 ) -> None:
     readings = load_public_sheet()
-    plan, forecast = build_irrigation_plan(
-        readings, locations_source, irrigation_trigger_cm, forecast_days, season
+    plan, forecast, history = build_irrigation_plan(
+        readings, locations_source, irrigation_trigger_cm, forecast_days, season, history_days
     )
     urgent_actions = plan["Recommended action"].isin(["Irrigate today", "Schedule within 48 h"])
     rainfall_holds = plan["Recommended action"].eq("Hold for forecast rain")
@@ -709,8 +753,8 @@ def show_forecast_advisory(
         st.plotly_chart(make_priority_map(plan), width="stretch")
     with weather_column:
         st.subheader("District water-balance outlook")
-        st.caption("Average forecast across sensor locations. Rainfall offsets field drawdown; ET0 indicates atmospheric water demand.")
-        st.plotly_chart(make_district_weather_figure(forecast), width="stretch")
+        st.caption(f"Past {history_days} days (grey/dotted) plus forecast (blue/orange), averaged across sensor locations. Rainfall offsets field drawdown; ET0 indicates atmospheric water demand.")
+        st.plotly_chart(make_district_weather_figure(forecast, history), width="stretch")
     action_order = {"Irrigate today": 0, "Schedule within 48 h": 1, "Hold for forecast rain": 2, "Monitor": 3}
     plan["_priority"] = plan["Recommended action"].map(action_order)
     st.subheader("Station action queue")
@@ -731,6 +775,7 @@ def show_forecast_advisory(
     station_forecast = forecast[forecast["Device"] == selected_device].copy()
     station_plan = plan[plan["Device"] == selected_device].iloc[0]
     station_history = device_history_window(readings, selected_device, history_days)
+    station_rain_history = history[history["Device"] == selected_device].copy()
     st.subheader(f"Device {int(selected_device)} water-distance forecast")
 
     # Current Status Summary Cards (Requirements 7, 8, 9)
@@ -799,12 +844,23 @@ def show_forecast_advisory(
         row=1,
     )
 
-    # 4. Secondary Visualization: Compact Bottom Rainfall Strip
+    # 4. Secondary Visualization: Compact Bottom Rainfall Strip (history + forecast)
+    if not station_rain_history.empty:
+        forecast_chart.add_trace(
+            go.Bar(
+                x=station_rain_history["Date"],
+                y=station_rain_history["Rainfall (mm)"],
+                name=f"Rainfall (past {history_days} d)",
+                marker_color="#9aa5ad",
+                hovertemplate="<b>%{x|%d %b %Y}</b><br>Observed rainfall: <b>%{y:.1f} mm</b><extra></extra>",
+            ),
+            row=2, col=1,
+        )
     forecast_chart.add_trace(
         go.Bar(
             x=station_forecast["Date"],
             y=station_forecast["Rainfall (mm)"],
-            name="Rainfall (mm)",
+            name="Rainfall (forecast)",
             marker_color="#5bc0de",
             hovertemplate="<b>%{x|%d %b %Y}</b><br>Forecast rainfall: <b>%{y:.1f} mm</b><extra></extra>",
         ),
@@ -848,7 +904,7 @@ def show_forecast_advisory(
         )
     st.plotly_chart(forecast_chart, width="stretch")
     if not station_history.empty:
-        st.caption(f"Grey line = {history_days} days of observed IoT readings. Blue line = forecast projection from today onward.")
+        st.caption(f"Grey line/bars = {history_days} days of observed IoT and Open-Meteo readings. Blue/orange = forecast projection from today onward.")
         with st.expander(f"Show observed history table (past {history_days} days)"):
             history_table = station_history.rename(columns={"Timestamp": "Date"})
             st.dataframe(history_table.round(2), hide_index=True, width="stretch")
