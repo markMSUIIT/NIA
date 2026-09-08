@@ -351,7 +351,7 @@ def load_open_meteo_history(latitude: float, longitude: float, days: int) -> pd.
     query = urlencode({
         "latitude": round(latitude, 4),
         "longitude": round(longitude, 4),
-        "daily": "temperature_2m_max,precipitation_sum,et0_fao_evapotranspiration",
+        "daily": "temperature_2m_max,precipitation_sum,et0_fao_evapotranspiration,weather_code",
         "timezone": "Asia/Manila",
         "past_days": days,
         "forecast_days": 1,
@@ -366,13 +366,16 @@ def load_open_meteo_history(latitude: float, longitude: float, days: int) -> pd.
         "temperature_2m_max": "Max temperature (C)",
         "precipitation_sum": "Rainfall (mm)",
         "et0_fao_evapotranspiration": "Reference ET (mm)",
+        "weather_code": "Weather code",
     })
     history["Date"] = pd.to_datetime(history["Date"])
     # Drop the trailing forecast_days=1 row so history stops the day before "today".
     return history.iloc[:-1].copy()
 
 
-def weather_condition(code: int) -> str:
+def weather_condition(code) -> str:
+    if pd.isna(code):
+        return "No data"
     conditions = {
         0: "Clear sky", 1: "Mainly clear", 2: "Partly cloudy", 3: "Overcast",
         45: "Fog", 48: "Rime fog", 51: "Light drizzle", 53: "Drizzle",
@@ -381,6 +384,21 @@ def weather_condition(code: int) -> str:
         95: "Thunderstorm", 96: "Thunderstorm with hail", 99: "Severe thunderstorm",
     }
     return conditions.get(int(code), "Unclassified conditions")
+
+
+def weather_icon(code) -> str:
+    """Pictorial glyph for a WMO weather code, in the style of consumer forecast apps."""
+    if pd.isna(code):
+        return "\u2753"
+    icons = {
+        0: "\u2600\ufe0f", 1: "\U0001F324\ufe0f", 2: "\u26c5", 3: "\u2601\ufe0f",
+        45: "\U0001F32B\ufe0f", 48: "\U0001F32B\ufe0f",
+        51: "\U0001F326\ufe0f", 53: "\U0001F326\ufe0f", 55: "\U0001F327\ufe0f",
+        61: "\U0001F326\ufe0f", 63: "\U0001F327\ufe0f", 65: "\U0001F327\ufe0f",
+        80: "\U0001F326\ufe0f", 81: "\U0001F327\ufe0f", 82: "\u26c8\ufe0f",
+        95: "\u26c8\ufe0f", 96: "\u26c8\ufe0f", 99: "\u26c8\ufe0f",
+    }
+    return icons.get(int(code), "\U0001F324\ufe0f")
 
 
 def show_sheet_timeseries(table: pd.DataFrame) -> None:
@@ -600,6 +618,8 @@ def build_irrigation_plan(
         weather_history = load_open_meteo_history(float(station["latitude"]), float(station["longitude"]), history_days).copy()
         weather_history["Device"] = station["Device"]
         weather_history["Place"] = station.get("place", "Unspecified")
+        weather_history["Weather"] = weather_history["Weather code"].map(weather_condition)
+        weather_history["Icon"] = weather_history["Weather code"].map(weather_icon)
         history_rows.append(weather_history)
         trend = recent_drawdown_rate(readings, station["Device"])
         # Rainfall and ET adjust the observed trend according to seasonal parameters.
@@ -610,6 +630,7 @@ def build_irrigation_plan(
         weather["Device"] = station["Device"]
         weather["Place"] = station.get("place", "Unspecified")
         weather["Weather"] = weather["Weather code"].map(weather_condition)
+        weather["Icon"] = weather["Weather code"].map(weather_icon)
         forecast_rows.append(weather)
 
         threshold_dates = weather.loc[weather["Projected water distance (cm)"] > irrigation_trigger_cm, "Date"]
@@ -723,6 +744,47 @@ def make_district_weather_figure(forecast: pd.DataFrame, history: pd.DataFrame |
     return figure
 
 
+def render_forecast_day_cards(station_forecast: pd.DataFrame, irrigation_trigger_cm: float) -> None:
+    """AccuWeather/PAGASA-style horizontal strip of daily forecast cards with weather icons."""
+    with st.container(horizontal=True):
+        for _, day in station_forecast.iterrows():
+            with st.container(border=True):
+                st.markdown(f"**{day['Date'].strftime('%a, %d %b')}**")
+                st.markdown(f"<span style='font-size:2rem'>{day['Icon']}</span>", unsafe_allow_html=True)
+                st.caption(day["Weather"])
+                st.markdown(f"🌡️ {day['Max temperature (C)']:.0f}° / {day['Min temperature (C)']:.0f}°C")
+                st.markdown(f"💧 {day['Rain probability (%)']:.0f}% · {day['Rainfall (mm)']:.1f} mm")
+                flag = "🚩 Above trigger" if day["Projected water distance (cm)"] > irrigation_trigger_cm else "✅ Below trigger"
+                st.caption(flag)
+
+
+def render_history_week_cards(station_rain_history: pd.DataFrame) -> None:
+    """Weekly rollup cards summarizing months of past rainfall, in the same card style as the forecast strip."""
+    if station_rain_history.empty:
+        return
+    weekly = station_rain_history.copy()
+    weekly["Week start"] = weekly["Date"] - pd.to_timedelta(weekly["Date"].dt.dayofweek, unit="D")
+    grouped = weekly.groupby("Week start", as_index=False).agg(
+        **{
+            "Total rainfall (mm)": ("Rainfall (mm)", "sum"),
+            "Avg max temp (C)": ("Max temperature (C)", "mean"),
+            "Total ET0 (mm)": ("Reference ET (mm)", "sum"),
+            "Worst code": ("Weather code", "max"),
+        }
+    )
+    grouped["Icon"] = grouped["Worst code"].map(weather_icon)
+    grouped["Weather"] = grouped["Worst code"].map(weather_condition)
+    with st.container(horizontal=True):
+        for _, week in grouped.iterrows():
+            with st.container(border=True):
+                st.markdown(f"**Week of {week['Week start'].strftime('%d %b')}**")
+                st.markdown(f"<span style='font-size:1.6rem'>{week['Icon']}</span>", unsafe_allow_html=True)
+                st.caption(f"Notable: {week['Weather']}")
+                st.markdown(f"🌧️ {week['Total rainfall (mm)']:.0f} mm total")
+                st.markdown(f"🌡️ avg {week['Avg max temp (C)']:.0f}°C")
+                st.caption(f"ET0: {week['Total ET0 (mm)']:.0f} mm")
+
+
 def show_forecast_advisory(
     locations_source,
     irrigation_trigger_cm: float,
@@ -786,6 +848,9 @@ def show_forecast_advisory(
         st.metric("Recent drawdown", f"{station_plan['Recent drawdown (cm/day)']:.2f} cm/day", border=True)
         crossing_str = station_plan["Threshold date"].strftime("%d %b %Y") if pd.notna(station_plan["Threshold date"]) else "No crossing in forecast"
         st.metric("Projected trigger crossing", crossing_str, border=True)
+
+    st.markdown(f"**{forecast_days}-day forecast**")
+    render_forecast_day_cards(station_forecast, irrigation_trigger_cm)
 
     # Calculate optimal Y-axis range for Water Distance (Requirement 5)
     history_values = station_history["Water Distance (cm)"] if not station_history.empty else pd.Series(dtype=float)
@@ -904,7 +969,10 @@ def show_forecast_advisory(
         )
     st.plotly_chart(forecast_chart, width="stretch")
     if not station_history.empty:
-        st.caption(f"Grey line/bars = {history_days} days of observed IoT and Open-Meteo readings. Blue/orange = forecast projection from today onward.")
+        months = history_days / 30.44
+        st.caption(f"Grey line/bars = {history_days} days (~{months:.1f} months) of observed IoT and Open-Meteo readings. Blue/orange = forecast projection from today onward.")
+        st.markdown(f"**Rainfall by week — past ~{months:.1f} months**")
+        render_history_week_cards(station_rain_history)
         with st.expander(f"Show observed history table (past {history_days} days)"):
             history_table = station_history.rename(columns={"Timestamp": "Date"})
             st.dataframe(history_table.round(2), hide_index=True, width="stretch")
@@ -915,7 +983,7 @@ def show_forecast_advisory(
                 mime="text/csv", key="download_device_history",
             )
     station_forecast["Projected water level (55 cm ref)"] = 55.0 - station_forecast["Projected water distance (cm)"]
-    weather_table = station_forecast[["Date", "Weather", "Min temperature (C)", "Max temperature (C)", "Rainfall (mm)", "Rain probability (%)", "Reference ET (mm)", "Max wind speed (km/h)", "Projected water distance (cm)", "Projected water level (55 cm ref)"]]
+    weather_table = station_forecast[["Date", "Icon", "Weather", "Min temperature (C)", "Max temperature (C)", "Rainfall (mm)", "Rain probability (%)", "Reference ET (mm)", "Max wind speed (km/h)", "Projected water distance (cm)", "Projected water level (55 cm ref)"]]
     st.subheader("Daily weather and water-distance outlook")
     st.dataframe(weather_table.round(2), hide_index=True, width="stretch")
     st.caption("Forecast source: Open-Meteo. Water-distance projection uses each station's recent trend, adjusted by forecast reference ET and rainfall. Validate recommendations against field conditions and canal availability.")
@@ -979,7 +1047,7 @@ def main() -> None:
         if source == "Forecast-aware irrigation plan":
             st.caption(f"Combines latest IoT water distance with Open-Meteo's daily forecast adapted for {season}. Forecasts refresh every 30 minutes.")
             forecast_locations_upload = st.file_uploader("Upload device locations CSV", type=["csv"], key="forecast_locations")
-            history_days = st.slider("Historical lookback (days)", 7, 90, 30, help="How many past days of observed IoT readings to show alongside the forecast.")
+            history_days = st.slider("Historical lookback (days)", 7, 92, 90, help="How many past days of observed IoT readings and rainfall to show alongside the forecast (up to ~3 months).")
             forecast_days = st.slider("Forecast horizon (days)", 3, 14, 7)
             forecast_trigger = st.number_input(f"{season} irrigation trigger (raw sensor cm)", min_value=SOIL_SURFACE_READING_CM, max_value=60.0, value=default_trigger, step=1.0, key="forecast_trigger")
             field_area_ha = st.number_input("Representative area per station (ha)", min_value=0.1, max_value=500.0, value=5.0, step=0.5)
