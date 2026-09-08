@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Midsayap Rice Water Advisory — How It Works</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/white.css" id="theme-link" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/highlight/monokai.css" />
+<style>
+  :root {
+    --nia-green: #1f5d37;
+    --nia-green-dark: #183d2a;
+    --nia-green-soft: #edf5ee;
+    --nia-green-light: #689f38;
+    --nia-amber: #e67e22;
+    --nia-blue: #2874a6;
+    --nia-red: #c0392b;
+    --text-dark: #1f2a1f;
+    --text-mid: #4f5d53;
+    --panel: #f7f4ec;
+    --panel-border: #dfe7d5;
+    --shadow-soft: 0 10px 24px rgba(26, 58, 38, 0.12);
+  }
+
+  .reveal {
+    font-family: 'Segoe UI', 'Arial', sans-serif;
+    color: var(--text-dark);
+  }
+
+  .reveal .slides section {
+    text-align: left;
+    height: 100%;
+    padding: 28px 40px 24px;
+    border-radius: 18px;
+    background: linear-gradient(180deg, #ffffff 0%, #f9faf6 100%);
+    box-shadow: none;
+  }
+
+  .reveal h1, .reveal h2, .reveal h3 {
+    color: var(--nia-green-dark);
+    font-family: 'Segoe UI', Georgia, serif;
+    letter-spacing: 0.02em;
+    margin-top: 0;
+  }
+
+  .reveal h1, .reveal h2 {
+    text-align: center;
+  }
+
+  .reveal h2 {
+    font-size: 1.6em;
+    margin-bottom: 0.55em;
+    padding-bottom: 0.3em;
+    border-bottom: 3px solid rgba(31, 93, 55, 0.18);
+    display: inline-block;
+    width: auto;
+    min-width: 60%;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .project-slide {
+    background: #f4f4f0 !important;
+    border-radius: 0 !important;
+    padding: 12px 20px 8px !important;
+    box-shadow: none !important;
+  }
+
+  .project-title {
+    margin: 0 0 8px 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    text-align: left !important;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 900;
+    font-size: 2.55em !important;
+    line-height: 1.05;
+    color: #123d2a !important;
+  }
+
+  .project-divider {
+    border-bottom: 2px solid rgba(22, 86, 57, 0.28);
+    margin: 0 0 18px 0;
+  }
+
+  .project-intro {
+    text-align: center;
+    max-width: 980px;
+    margin: 0 auto 18px auto !important;
+    font-size: 0.74em !important;
+    line-height: 1.5 !important;
+    color: #244b3b !important;
+    font-weight: 500;
+  }
+
+  .project-panel {
+    display: flex;
+    gap: 18px;
+    margin-top: 6px;
+  }
+
+  .project-column {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .project-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 10px;
+    color: #123d2a;
+    text-transform: uppercase;
+    font-weight: 900;
+    font-size: 0.92em;
+    letter-spacing: 0.02em;
+  }
+
+  .project-header .icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    background: #dfeee2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1em;
+    box-shadow: inset 0 0 0 1px rgba(18,61,42,0.08);
+  }
+
+  .project-card-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .project-card {
+    display: flex;
+    align-items: center;
+    min-height: 80px;
+    padding: 10px 14px;
+    background: rgba(255,255,255,0.28);
+    border: 1px solid #d2ddd0;
+    border-radius: 8px;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.3);
+    font-size: 0.98em !important;
+    line-height: 1.18 !important;
+    font-weight: 600;
+    color: #1e3d2d !important;
+    text-align: left;
+  }
+
+  .project-card strong {
+    color: #123d2a;
+  }
+
+  .reveal h3 {
+    font-size: 0.88em;
+    margin-bottom: 0.5em;
+  }
+
+  .reveal p, .reveal li {
+    font-size: 0.62em;
+    line-height: 1.45;
+    color: var(--text-dark);
+  }
+
+  .title-slide {
+    text-align: center;
+    background: linear-gradient(135deg, #ffffff 0%, #f3f8f2 42%, #eef6ef 100%);
+  }
+
+  .title-slide h1 {
+    font-size: 2.1em;
+    margin-bottom: 0.18em;
+    color: var(--nia-green-dark);
+  }
+
+  .title-slide p {
+    color: var(--text-mid);
+    font-size: 0.72em;
+  }
+
+  .badge-row {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 0.8em;
+  }
+
+  .badge {
+    background: linear-gradient(135deg, var(--nia-green), #2d7d53);
+    color: white;
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: 0.53em;
+    font-weight: 600;
+    box-shadow: 0 4px 10px rgba(31, 93, 55, 0.18);
+  }
+
+  .badge.amber { background: linear-gradient(135deg, var(--nia-amber), #f0a43b); }
+  .badge.blue { background: linear-gradient(135deg, var(--nia-blue), #3d8cc2); }
+  .badge.red { background: linear-gradient(135deg, var(--nia-red), #de5946); }
+
+  .cols {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+  }
+
+  .col {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .card {
+    background: linear-gradient(180deg, var(--panel) 0%, #ffffff 100%);
+    border: 1px solid var(--panel-border);
+    border-left: 4px solid var(--nia-green);
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin: 8px 0;
+    box-shadow: var(--shadow-soft);
+  }
+
+  .card h3 {
+    margin: 0 0 6px 0;
+  }
+
+  .card p {
+    margin: 0;
+  }
+
+  .flow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin: 12px 0;
+  }
+
+  .flow .box {
+    background: white;
+    border: 2px solid var(--nia-green);
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-size: 0.56em;
+    text-align: center;
+    min-width: 130px;
+    box-shadow: 0 6px 15px rgba(31, 93, 55, 0.08);
+  }
+
+  .flow .arrow {
+    font-size: 1.4em;
+    color: var(--nia-green);
+    font-weight: 700;
+  }
+
+  .step-list {
+    margin: 0;
+    padding-left: 1.2em;
+  }
+
+  .step-list li {
+    margin-bottom: 0.45em;
+  }
+
+  .icon-row {
+    display: flex;
+    gap: 22px;
+    justify-content: center;
+    font-size: 1.8em;
+    margin: 16px 0;
+  }
+
+  .small {
+    font-size: 0.48em;
+    color: #666;
+  }
+
+  table.compare {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.55em;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: var(--shadow-soft);
+  }
+
+  table.compare th, table.compare td {
+    border: 1px solid #dfe7d5;
+    padding: 8px 10px;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  table.compare th {
+    background: linear-gradient(135deg, var(--nia-green), #2c7253);
+    color: white;
+    font-weight: 700;
+  }
+
+  .action-tag {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 999px;
+    color: white;
+    font-size: 0.52em;
+    font-weight: 700;
+    margin-right: 8px;
+  }
+
+  .footer-note {
+    position: fixed;
+    bottom: 8px;
+    right: 16px;
+    font-size: 0.35em;
+    color: #8a8a8a;
+  }
+
+  .serve-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .serve-grid .card {
+    margin: 0;
+  }
+
+  .reveal ul,
+  .reveal ol {
+    margin-left: 0.4em;
+  }
+</style>
+</head>
+<body>
+<div class="reveal">
+  <div class="slides">
+
+    <!-- 1. Title -->
+    <section class="title-slide">
+      <h1>🌾 RiceProTek</h1>
+      <p>Midsayap Rice Water Advisory — a forecast-aware, seasonally-adaptive irrigation decision support platform</p>
+      <div class="badge-row">
+        <span class="badge">Streamlit</span>
+        <span class="badge blue">Open-Meteo</span>
+        <span class="badge amber">Google Sheets IoT</span>
+        <span class="badge red">AWD Rice Science</span>
+      </div>
+      <p class="small" style="margin-top:1.5em;">How it works — architecture, data flow, and decision logic</p>
+    </section>
+
+    <!-- 1b. RiceProTek project overview -->
+    <section class="project-slide">
+      <h2 class="project-title">Project Background: RiceProTek</h2>
+      <div class="project-divider"></div>
+      <p class="project-intro">RiceProTek is the broader digital platform behind the AWD advisory workflow. It is a web application developed in <strong>ASP.NET Core MVC</strong> for rice field management, monitoring, and decision support.</p>
+
+      <div class="project-panel">
+        <div class="project-column">
+          <div class="project-header">
+            <span class="icon">🧩</span>
+            <span>What the project includes</span>
+          </div>
+          <div class="project-card-list">
+            <div class="project-card">Secure web app with user authentication, roles, and session-based access</div>
+            <div class="project-card">Data management for fields, weather, crop conditions, and pest-related records</div>
+            <div class="project-card">AI-enabled services for model training, prediction, and crop protection support</div>
+            <div class="project-card">Integration with live weather and seasonal agronomic logic for field advisories</div>
+          </div>
+        </div>
+
+        <div class="project-column">
+          <div class="project-header">
+            <span class="icon">🎯</span>
+            <span>Why it matters</span>
+          </div>
+          <div class="project-card-list">
+            <div class="project-card">Supports rice farm operators, irrigation managers, and agricultural offices</div>
+            <div class="project-card">Brings together monitoring, forecasting, and operational guidance in one system</div>
+            <div class="project-card">Provides the digital foundation for the AWD irrigation recommendation engine</div>
+            <div class="project-card">Designed to help reduce water waste while improving crop management decisions</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 1c. What is RiceProTek -->
+    <section>
+      <h2>What is RiceProTek?</h2>
+      <p style="text-align:center; max-width:900px; margin:0 auto 14px;">RiceProTek is an <strong>Alternate Wetting and Drying (AWD) irrigation decision-support platform</strong> for rice systems — turning raw soil-water sensor readings and weather forecasts into a clear, daily <strong>irrigate / hold / monitor</strong> recommendation for every field station.</p>
+      <div class="cols">
+        <div class="col">
+          <h3 style="text-align:center;">🎯 Who it serves</h3>
+          <div class="serve-grid">
+            <div class="card">👨‍🌾 Rice farmers &amp; water masters</div>
+            <div class="card">🏞️ Irrigators' associations (IAs)</div>
+            <div class="card">🏛️ NIA / LGU agriculture offices</div>
+            <div class="card">🔬 PhilRice / research partners</div>
+          </div>
+        </div>
+        <div class="col">
+          <h3 style="text-align:center;">💡 What it delivers</h3>
+          <div class="card">📡 Live IoT water-level monitoring per station</div>
+          <div class="card">🌦️ Weather-aware, season-adjusted irrigation triggers</div>
+          <div class="card">🗺️ A single dashboard to prioritize where water goes next</div>
+        </div>
+      </div>
+      <p class="small" style="text-align:center; margin-top:10px;">Currently piloted for irrigation service areas in Midsayap, North Cotabato.</p>
+    </section>
+
+    <!-- 2. The Problem -->
+    <section>
+      <h2>The Problem</h2>
+      <div class="cols">
+        <div class="col">
+          <div class="card">
+            <h3>💧 Manual irrigation decisions</h3>
+            <p>Water masters historically decide "irrigate or wait?" using field visits and gut feel — expensive and inconsistent.</p>
+          </div>
+          <div class="card">
+            <h3>🌧️ Rain and sensor data live apart</h3>
+            <p>IoT soil-water sensors report distance-to-water, but nobody merges that with rainfall forecasts to answer <em>"will it rain before we need to irrigate?"</em></p>
+          </div>
+        </div>
+        <div class="col">
+          <div class="card">
+            <h3>🌦️ Wet vs dry season needs differ</h3>
+            <p>A single fixed irrigation trigger doesn't fit both the wet season (May–Oct) and dry season (Nov–Apr) in Mindanao rice systems.</p>
+          </div>
+          <div class="card">
+            <h3>🎯 Goal</h3>
+            <p>Combine live sensor readings + live weather forecasts into one clear <strong>Irrigate / Hold / Monitor</strong> recommendation, per station, per day.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. Data Sources -->
+    <section>
+      <h2>Two Live Data Sources, Merged</h2>
+      <table class="compare">
+        <tr>
+          <th>Source</th><th>What it provides</th><th>Refresh</th><th>Used for</th>
+        </tr>
+        <tr>
+          <td>📄 Public Google Sheet (IoT)</td>
+          <td>Timestamp, Device, Water Distance (cm), Moisture, Soil Temp, EC, pH, NPK (Nitrogen, Phosphorus, Potassium), Air Temp, Humidity, Wind</td>
+          <td>Cached 15 min</td>
+          <td>Current water level, soil condition, and nutrient status per station</td>
+        </tr>
+        <tr>
+          <td>🌐 Open-Meteo API</td>
+          <td>Daily rainfall, reference ET0, temperature, wind, weather code — both forecast and past (~92 days)</td>
+          <td>Cached 30 min</td>
+          <td>Rain-aware projection + irrigation deferral logic</td>
+        </tr>
+        <tr>
+          <td>📍 device_locations.csv</td>
+          <td>Device ID, longitude, latitude, place name</td>
+          <td>Static / user-uploaded</td>
+          <td>Links every sensor reading to a real field location</td>
+        </tr>
+      </table>
+      <p class="small" style="text-align:center;margin-top:1em;">No Google Sheets API and no weather API key are required — both are public, credential-free endpoints.</p>
+    </section>
+
+    <!-- 4. NPK significance -->
+    <section>
+      <h2>Soil Nutrient Monitoring: NPK</h2>
+      <div class="cols">
+        <div class="col">
+          <p>Alongside water level, the sensor platform also captures <strong>NPK values</strong>:</p>
+          <ul class="step-list">
+            <li><strong>Nitrogen (N)</strong> — supports vegetative growth and leaf development.</li>
+            <li><strong>Phosphorus (P)</strong> — supports root development and early tillering.</li>
+            <li><strong>Potassium (K)</strong> — supports plant vigor, stress tolerance, and grain filling.</li>
+          </ul>
+        </div>
+        <div class="col">
+          <div class="card" style="border-left:6px solid #2e8b57;">
+            <h3>🌱 Agronomic meaning</h3>
+            <p>NPK helps interpret whether crop performance is limited by nutrient status, not just water stress.</p>
+          </div>
+          <div class="card" style="border-left:6px solid #2874a6;">
+            <h3>📊 Decision support</h3>
+            <p>It complements water management by showing if the field is simultaneously facing water and nutrient imbalance.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. Architecture flow -->
+    <section>
+      <h2>End-to-End Data Flow</h2>
+      <div class="flow">
+        <div class="box">📄 Google Sheet<br/>(live IoT readings)</div>
+        <div class="arrow">→</div>
+        <div class="box">🧮 Clean + validate<br/>(0–60 cm range)</div>
+        <div class="arrow">→</div>
+        <div class="box">📈 Per-station<br/>drawdown trend</div>
+        <div class="arrow">→</div>
+        <div class="box">🌦️ Open-Meteo<br/>forecast + history</div>
+      </div>
+      <div class="flow">
+        <div class="box" style="border-color:var(--nia-amber)">⚙️ Seasonal model<br/>(Wet vs Dry factors)</div>
+        <div class="arrow">→</div>
+        <div class="box" style="border-color:var(--nia-amber)">🧠 Projected water<br/>distance, day by day</div>
+        <div class="arrow">→</div>
+        <div class="box" style="border-color:var(--nia-red)">🚦 Recommended<br/>action per station</div>
+        <div class="arrow">→</div>
+        <div class="box" style="border-color:var(--nia-red)">📊 Dashboard:<br/>map, cards, charts</div>
+      </div>
+    </section>
+
+    <!-- 5. AWD concept -->
+    <section>
+      <h2>The Science: Alternate Wetting and Drying (AWD)</h2>
+      <div class="cols">
+        <div class="col">
+          <p>Rice doesn't need to be flooded at all times. AWD lets the field dry down safely between irrigations, saving water without hurting yield.</p>
+          <ul class="step-list">
+            <li><strong>Sensor reading = raw distance</strong> from an above-soil sensor down to the water/soil surface.</li>
+            <li><strong>20 cm</strong> raw reading is calibrated as "at the soil surface" (0 cm deficit).</li>
+            <li><strong>Water level (55 cm ref)</strong> = 55 − raw distance, giving an intuitive "how full" reading.</li>
+            <li>Deficit beyond the <strong>irrigation trigger</strong> (season-dependent) ⇒ irrigation is needed.</li>
+          </ul>
+        </div>
+        <div class="col">
+          <div class="card" style="border-left:6px solid #1579b5;">🔵 <strong>Sufficient</strong> — at/above soil surface</div>
+          <div class="card" style="border-left:6px solid #2e8b57;">🟢 <strong>Small drawdown</strong> — monitor</div>
+          <div class="card" style="border-left:6px solid #f0c419;">🟡 <strong>Watch</strong> — approaching trigger</div>
+          <div class="card" style="border-left:6px solid #c0392b;">🔴 <strong>Irrigation needed</strong> — beyond trigger</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6. Seasonal adaptation -->
+    <section>
+      <h2>Wet Season vs Dry Season Adaptation</h2>
+      <table class="compare">
+        <tr><th>Parameter</th><th>🌧️ Wet Season (May–Oct)</th><th>☀️ Dry Season (Nov–Apr)</th></tr>
+        <tr><td>Irrigation trigger (raw)</td><td>35 cm</td><td>30 cm (earlier action, less rainfall buffer)</td></tr>
+        <tr><td>Evapotranspiration weight</td><td>0.15</td><td>0.20 (hotter, drier air pulls more water)</td></tr>
+        <tr><td>Rainfall offset weight</td><td>0.06</td><td>0.04 (less rain expected to help)</td></tr>
+        <tr><td>Rain deferral threshold</td><td>≥ 8 mm &amp; ≥ 50% chance</td><td>≥ 15 mm &amp; ≥ 60% chance (stricter — less reliable rain)</td></tr>
+      </table>
+      <p class="small" style="text-align:center; margin-top:1em;">Based on PhilRice / IRRI AWD guidance adapted for Philippine rice cropping cycles.</p>
+    </section>
+
+    <!-- 7. Decision logic -->
+    <section>
+      <h2>The Recommendation Engine</h2>
+      <div class="cols">
+        <div class="col">
+          <p>For every station, each day:</p>
+          <p style="font-size:0.7em; background:#f4f0e4; padding:14px; border-radius:10px;">
+            Projected change = drawdown trend<br/>
+            &nbsp;&nbsp;+ (ET weight × forecast ET0)<br/>
+            &nbsp;&nbsp;− (rain weight × forecast rainfall)
+          </p>
+          <p>This projects tomorrow's water distance from today's real sensor reading — not a guess.</p>
+        </div>
+        <div class="col">
+          <p><span class="action-tag" style="background:#c0392b;">Irrigate today</span> Beyond trigger, no rain rescue expected</p>
+          <p><span class="action-tag" style="background:#2874a6;">Hold for forecast rain</span> Beyond trigger, but meaningful rain is coming</p>
+          <p><span class="action-tag" style="background:#e67e22;">Schedule within 48 h</span> Will cross trigger within 2 days</p>
+          <p><span class="action-tag" style="background:#2e8b57;">Monitor</span> Comfortably below trigger</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 8. Dashboard tour 1 -->
+    <section>
+      <h2>Dashboard: District Overview</h2>
+      <ul class="step-list">
+        <li>🗺️ <strong>Irrigation priority map</strong> — every sensor plotted on satellite imagery, color-coded by action</li>
+        <li>📊 <strong>District water-balance chart</strong> — rainfall + ET0, past ~2.5 months and forecast, split by a "Today" divider</li>
+        <li>📋 <strong>Station action queue</strong> — sortable table, most urgent stations first</li>
+        <li>💧 <strong>KPIs</strong> — stations assessed, urgent count, held-for-rain count, indicative delivery volume (m³)</li>
+      </ul>
+    </section>
+
+    <!-- 9. Dashboard tour 2 -->
+    <section>
+      <h2>Dashboard: Per-Station Detail</h2>
+      <div class="cols">
+        <div class="col">
+          <ul class="step-list">
+            <li>🎴 <strong>Status cards</strong> — action, water level, drawdown rate, projected trigger-crossing date</li>
+            <li>☀️🌧️ <strong>7-day forecast strip</strong> — day cards with weather icons, high/low temps, rain %, trigger flag</li>
+            <li>📆 <strong>Weekly rainfall rollup cards</strong> — up to ~2.5 months back, total rainfall, avg temp, dominant icon</li>
+          </ul>
+        </div>
+        <div class="col">
+          <ul class="step-list">
+            <li>📈 <strong>Water-distance chart</strong> — observed history + projected forecast, irrigation-trigger line, rainfall strip</li>
+            <li>📥 Full data tables with CSV download for every layer</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- 10. Icons example -->
+    <section>
+      <h2>Weather Icons, Consumer-App Style</h2>
+      <div class="icon-row">
+        <span>☀️</span><span>🌤️</span><span>⛅</span><span>☁️</span><span>🌫️</span><span>🌦️</span><span>🌧️</span><span>⛈️</span>
+      </div>
+      <p class="small" style="text-align:center;">
+        Clear · Mostly clear · Partly cloudy · Overcast · Fog · Drizzle/showers · Rain · Thunderstorm
+      </p>
+      <p style="text-align:center;">Mapped directly from Open-Meteo's WMO weather codes — same glyphs used in the day cards, weekly cards, and outlook tables.</p>
+    </section>
+
+    <!-- 11. Tech stack -->
+    <section>
+      <h2>Tech Stack</h2>
+      <div class="serve-grid">
+        <div class="card"><h3>🐍 Python + Streamlit</h3><p>Single-file reactive dashboard (<code>app.py</code>), wide layout, seasonal sidebar controls</p></div>
+        <div class="card"><h3>📈 Plotly</h3><p>Interactive maps, satellite basemap, subplot charts, heatmaps</p></div>
+        <div class="card"><h3>🗺️ GeoPandas + Rasterio</h3><p>Boundary shapefile, elevation DEM, IDW/linear interpolation</p></div>
+        <div class="card"><h3>☁️ Caching</h3><p><code>st.cache_data</code> TTLs (15 min sheet, 30 min weather)</p></div>
+      </div>
+    </section>
+
+    <!-- 12. Deployment -->
+    <section>
+      <h2>Version Control &amp; Deployment</h2>
+      <ul class="step-list">
+        <li>📦 Source hosted at <code>github.com/markMSUIIT/NIA</code>, tracked with Git from day one</li>
+        <li>🔁 Every feature (seasonal logic, water level, history, weather icons) is a discrete, tested commit</li>
+        <li>🚀 Ready for Streamlit Community Cloud: point it at <code>app.py</code> + <code>requirements.txt</code>, no secrets required</li>
+        <li>🔒 No API keys, no Google Sheets API — everything uses public, credential-free endpoints</li>
+      </ul>
+    </section>
+
+    <!-- 13. What's next -->
+    <section>
+      <h2>Where This Can Go Next</h2>
+      <ul class="step-list">
+        <li>💦 Real canal flow/discharge data to validate the "indicative delivery volume" scenario</li>
+        <li>📱 Push notifications to water masters when a station crosses "Irrigate today"</li>
+        <li>🧪 Calibrate the projection model against actual irrigation logs for better accuracy</li>
+        <li>🗂️ Multi-service-area rollups for larger irrigation systems beyond Midsayap</li>
+      </ul>
+    </section>
+
+    <!-- 14. Closing -->
+    <section class="title-slide">
+      <h1>Questions?</h1>
+      <p>🌾 Midsayap Rice Water Advisory — live sensors + live weather = smarter irrigation</p>
+      <p class="small">app.py · Streamlit · Plotly · Open-Meteo · Google Sheets</p>
+    </section>
+
+  </div>
+</div>
+
+<div class="footer-note">Midsayap Rice Water Advisory — internal presentation</div>
+
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+<script>
+  Reveal.initialize({
+    hash: true,
+    slideNumber: true,
+    transition: 'slide',
+    width: 1280,
+    height: 960,
+    margin: 0.04,
+  });
+</script>
+</body>
+</html>
