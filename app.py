@@ -1047,7 +1047,7 @@ def main() -> None:
         if source == "Forecast-aware irrigation plan":
             st.caption(f"Combines latest IoT water distance with Open-Meteo's daily forecast adapted for {season}. Forecasts refresh every 30 minutes.")
             forecast_locations_upload = st.file_uploader("Upload device locations CSV", type=["csv"], key="forecast_locations")
-            history_days = st.slider("Historical lookback (days)", 7, 92, 90, help="How many past days of observed IoT readings and rainfall to show alongside the forecast (up to ~3 months).")
+            history_days = st.slider("Historical lookback (days)", 7, 92, 76, help="How many past days of observed IoT readings and rainfall to show alongside the forecast (default ~2.5 months, plus the forecast horizon below).")
             forecast_days = st.slider("Forecast horizon (days)", 3, 14, 7)
             forecast_trigger = st.number_input(f"{season} irrigation trigger (raw sensor cm)", min_value=SOIL_SURFACE_READING_CM, max_value=60.0, value=default_trigger, step=1.0, key="forecast_trigger")
             field_area_ha = st.number_input("Representative area per station (ha)", min_value=0.1, max_value=500.0, value=5.0, step=0.5)
